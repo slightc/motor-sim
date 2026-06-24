@@ -23,6 +23,7 @@ Controller(决策) → Inverter(开关物理) → Motor(电磁物理) → Sensor
 |------|------|
 | `core/` | 仿真核心 + 官方扩展(逆变器/传感器) |
 | `control/` | 各控制算法的可运行 demo |
+| `hardware/` | 硬件抽象层：把真实硬件抽象成参数配置并装配 core 对象(如 X-NUCLEO-IHM07M1) |
 | `docs/` | 文档 |
 | `extensions/` | 自定义扩展示例(加控制器/传感器) |
 | `skills/motorsim/` | 给外部 agent 使用的 skill |

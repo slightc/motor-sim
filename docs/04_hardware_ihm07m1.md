@@ -23,3 +23,16 @@
 5. 板载 BEMF 电路仅对六步有效，低速 FOC 无感不用它。
 
 仿真对齐：`CurrentSensor(adc_bits=12, i_range=3.27, noise_std=0.003)` + `InverterLimits(24, 2.5)`。
+
+## 代码入口
+
+无需手工拼装上述参数，直接用硬件抽象层：
+
+```python
+from ihm07m1 import X_NUCLEO_IHM07M1     # hardware/ 目录
+hw  = X_NUCLEO_IHM07M1(position="encoder")
+sim = hw.build_simulator(controller)     # 自动装好 plant+inverter+sensors+limits
+```
+
+`hardware/` 把整块板子抽象成 `HardwareProfile`（电机/功率级/电流·位置传感器），
+电机电磁参数为占位默认值，应由真机标定回填（见 `05_hardware_deployment.md`）。详见 `hardware/README.md`。

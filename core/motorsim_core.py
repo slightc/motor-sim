@@ -9,6 +9,7 @@ motorsim.core —— 电机仿真核心（只含电机物理 + 编排）
 """
 from dataclasses import dataclass, field, replace
 from typing import Protocol, Callable, Optional, List
+from collections import deque
 import math
 
 _S3 = math.sqrt(3.0)
@@ -232,21 +233,53 @@ class Recorder:
 
 # ---------------- 仿真编排 ----------------
 class Simulator:
+    """闭环仿真编排，支持多速率时序（物理细分积分 + 控制按 f_ctrl 执行 + 计算延迟）。
+
+    单速率（默认）：f_ctrl=None、control_delay=0 时，控制每个物理步执行一次、指令
+    立即施加，与旧行为完全一致。
+
+    多速率：设定 f_ctrl 后，控制周期 Tc=1/f_ctrl（对齐到 dt 整数倍），物理在两次控制
+    更新之间以 dt 细分积分，控制指令零阶保持(ZOH)施加；逆变器/死区仍按物理 dt 解析，
+    因此可用细 dt 过采样 PWM 载波。control_delay 以"控制周期"为单位施加 z^-N 延迟，
+    复现真实数字 FOC 的采样→计算→下周期更新延迟（典型 1~2 个周期）。
+    """
     def __init__(self, plant, controller, inverter=None, sensors=None, observers=None):
         self.plant=plant; self.controller=controller
         self.inverter=inverter or IdealInverter()
         self.sensors=sensors or IdealSensors()
         self.observers=observers or []
-    def run(self, duration, dt, reference=lambda t:0.0, load=lambda t:0.0):
-        for k in range(int(duration/dt)):
+    def run(self, duration, dt, reference=lambda t:0.0, load=lambda t:0.0,
+            f_ctrl=None, control_delay=0):
+        """
+        dt            物理积分步长（细）。
+        f_ctrl        控制器执行频率(Hz)。None=每个物理步都执行控制（单速率，旧行为）。
+        control_delay 计算/更新延迟，单位=控制周期（整数，默认0）。第 k 个控制周期采样
+                      算得的指令延迟 control_delay 个周期才施加（z^-N）。
+        """
+        n_steps=int(round(duration/dt))
+        if f_ctrl is None:
+            n_sub=1; Tc=dt
+        else:
+            n_sub=max(1, int(round((1.0/f_ctrl)/dt)))
+            Tc=n_sub*dt                                       # 对齐到物理步长整数倍
+        delay=int(control_delay)
+        # 延迟队列：长度 delay 的零指令预填，append 后 popleft 取出 delay 周期前的指令
+        queue=deque((VoltageCommand() for _ in range(delay)), maxlen=delay+1)
+        k=0
+        while k<n_steps:
             t=self.plant.t
             true_obs=self.plant.observe()
-            meas=self.sensors.measure(true_obs, dt)          # 传感器物理
-            cmd=self.controller.compute(meas, reference(t), dt)  # 控制决策
-            v_abc=self.inverter.apply(cmd, true_obs, dt)     # 逆变器物理（死区用真值）
-            v_abc=replace(v_abc, t_load=load(t))
-            self.plant.step(v_abc, dt)                       # 电机物理
-            for ob in self.observers: ob(self.plant.observe())
+            meas=self.sensors.measure(true_obs, Tc)          # 传感器物理（按控制率采样）
+            cmd=self.controller.compute(meas, reference(t), Tc)  # 控制决策（用控制周期 Tc）
+            queue.append(cmd); held=queue.popleft()          # 计算/更新延迟 z^-N
+            for _ in range(n_sub):                            # 控制周期内细分积分，ZOH 施加
+                if k>=n_steps: break
+                obs=self.plant.observe()
+                v_abc=self.inverter.apply(held, obs, dt)     # 逆变器物理（死区用真值，细 dt）
+                v_abc=replace(v_abc, t_load=load(self.plant.t))
+                self.plant.step(v_abc, dt)                   # 电机物理
+                for ob in self.observers: ob(self.plant.observe())
+                k+=1
         return self.plant.observe()
 
 

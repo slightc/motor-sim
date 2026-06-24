@@ -16,6 +16,7 @@
 | 08 | `08_fullrange_fusion` | HFI⊕EKF 速度自适应融合 | 全速域 | 按 ωeψ/(Ri) 可观测性加权 + 负载转矩观测器 |
 | 09 | `09_if_opencontrol` | I/f 开环 + 主动阻尼 | 任意(兜底) | 无观测器→永不发散，效率低 |
 | 10 | `10_position_servo_closedloop` | 闭环无感位置伺服 | 定位 | 级联+方波HFI，<1° 机械 |
+| 11 | `11_multirate_timing` | 多速率时序 + 计算延迟 | 时序保真 | 物理细dt过采样PWM/控制按f_ctrl/ZOH/速度环分频/z^-N延迟 |
 
 ## 关键物理结论
 

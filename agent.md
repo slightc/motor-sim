@@ -66,3 +66,6 @@ skills/motorsim/SKILL.md   供外部 agent 调用
 
 - 闭环无感定位重载下 (~iq>1A) 误差 >1°，因解析交叉饱和补偿不足；需调试离线标定子程序(HFI 在标定时可靠捕获)后改查表补偿。
 - EKF 用隐极简化模型，有 ~2°(电)负载相关偏置；可换 EEMF 凸极模型消除。
+- **时序保真（已部分补齐）**：`Simulator` 支持 `f_ctrl`(控制率与物理 dt 解耦+ZOH) 与 `control_delay`(z^-N 计算延迟)，
+  慢环 decimation 在 controller 内做（见 docs/01 与 demo 11）。**仍缺**：① ADC 采样与 PWM 载波峰/谷同步触发
+  (当前电流采样仅按时间 ZOH，未对齐载波)；② 中断模型(延迟/抖动/优先级抢占)；③ f_pwm 与 dt 不匹配时的一致性校验/告警。

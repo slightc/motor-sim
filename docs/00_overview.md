@@ -34,3 +34,8 @@ cd control
 python3 01_foc_sensored.py             # 有感 FOC 基线
 python3 10_position_servo_closedloop.py # 闭环无感位置伺服 <1°
 ```
+
+## 落到真机
+
+把算法部署到 X-NUCLEO-IHM07M1，并用真机录波反向标定 core 物理参数，以黄金数据集做可回归迭代，
+见 `docs/05_hardware_deployment.md`。

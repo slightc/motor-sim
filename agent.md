@@ -46,6 +46,7 @@ controller 探索中暴露的 core 短板，要按下面五个维度沉淀回 co
 core/        motorsim_core.py(物理+编排+接口) / motorsim_inverter.py / motorsim_sensors.py
 control/     01..10 控制算法 demo（见 docs/03_control_methods.md）
 hardware/    硬件抽象层：HardwareProfile + X_NUCLEO_IHM07M1（参数配置→装配 core 对象）
+             hardware/motor/ 可复用电机配置库（命名 MotorConfig 工厂，硬件与 demo 共用）
 docs/        00 总览 / 01 架构 / 02 物理 / 03 控制方法 / 04 硬件 / 05 硬件部署+仿真实测回归
 extensions/  custom_controller.py / custom_sensor.py 模板
 skills/motorsim/SKILL.md   供外部 agent 调用

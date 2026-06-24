@@ -15,13 +15,13 @@ X-NUCLEO-IHM07M1 硬件 Profile
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "motor"))
 
-from motorsim_core import (
-    MotorConfig, ElectricalParams, MechanicalParams, ThermalParams,
-)
+from motorsim_core import MotorConfig
 from hardware_profile import (
     HardwareProfile, PowerStageConfig, CurrentSensorConfig, PositionSensorConfig,
 )
+from motor_library import small_pmsm
 
 
 # 与板子对齐的固定硬件事实（功率级 + 电流链）
@@ -36,13 +36,10 @@ _CURRENT = CurrentSensorConfig(
 
 
 def _default_motor() -> MotorConfig:
-    """占位小型 PMSM（待真机标定）。与 control/ demo 用的电机量级一致。"""
-    return MotorConfig(
-        name="IHM07M1-PMSM(待标定)",
-        electrical=ElectricalParams(R0=0.5, Ld=4.0e-3, Lq=6.0e-3, psi0=0.03, p=4),
-        mechanical=MechanicalParams(J=6.0e-4, B=1.5e-4, Tc=0.02),
-        thermal=ThermalParams(enabled=True, T_amb=25.0),
-    )
+    """占位小型 PMSM（待真机标定），取自可复用电机库 hardware/motor。"""
+    m = small_pmsm(thermal=True)
+    m.name = "IHM07M1-PMSM(待标定)"
+    return m
 
 
 def X_NUCLEO_IHM07M1(position: str = "encoder", ppr: int = 2500,

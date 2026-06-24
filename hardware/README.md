@@ -4,8 +4,10 @@
 并提供工厂方法把这些参数一键装配成 core 能用的对象。对外只有一个 `HardwareProfile` 类。
 
 ```
-hardware_profile.py   HardwareProfile + 四个子配置(PowerStage/CurrentSensor/PositionSensor)
+hardware_profile.py   HardwareProfile + 子配置(PowerStage/CurrentSensor/PositionSensor)
 ihm07m1.py            X-NUCLEO-IHM07M1 具体 Profile（+ 冒烟自检 __main__）
+motor/                可复用电机配置库（命名 MotorConfig 工厂）
+  motor_library.py      small_pmsm / small_pmsm_salient / hfi_high_flux + get_motor/list_motors
 __init__.py           包说明
 ```
 
@@ -49,6 +51,30 @@ cd hardware && python3 ihm07m1.py
 - `ideal_current`：`True` 去掉量化/噪声做对照基准。
 - `motor`：传入真机标定得到的 `MotorConfig` 覆盖占位默认值。
 - `hw.with_overrides(...)`：返回覆盖部分子配置的新 Profile，便于参数扫描/标定。
+
+## 可复用电机库 `motor/`
+
+电机参数从硬件 Profile 里抽出来，集中成命名工厂，硬件与 demo 共用、避免到处硬编码：
+
+```python
+import sys; sys.path.insert(0, "hardware/motor")
+from motor_library import get_motor, small_pmsm, small_pmsm_salient, list_motors
+
+m = small_pmsm()                         # 基础小型 PMSM（IHM07M1 量级）
+m = small_pmsm(thermal=False)            # 关热模型
+m = get_motor("small_pmsm_salient")      # 带凸极/饱和（HFI/磁极辨识）
+m = get_motor("small_pmsm", R0=0.42, p=4) # 覆盖电气参数（真机标定回填）
+list_motors()                            # 查看全部预设
+```
+
+| 预设 | 用途 |
+|------|------|
+| `small_pmsm` | 基础小型 PMSM，凸极/饱和关闭；硬件默认与多数 demo |
+| `small_pmsm_salient` | 带交叉饱和 + d 轴极性饱和，HFI 无感 / 磁极辨识 / 闭环无感伺服 |
+| `hfi_high_flux` | 高磁链(ψ=0.08)凸极，脉振 HFI 标定场景 |
+
+`X_NUCLEO_IHM07M1(motor=...)` 默认取 `small_pmsm()`，可传入库里任一电机或真机标定的 `MotorConfig`。
+每个工厂返回**全新实例**，可安全用于参数扫描/多 plant。新增电机：在 `motor_library.py` 加工厂并登记到 `MOTORS`。
 
 ## 新增一块硬件
 

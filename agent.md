@@ -7,14 +7,38 @@
 模块化 PMSM 仿真 + 无感控制研究。核心信条：**物理归 core，算法归 controller**。
 信号链：`Controller → Inverter → Motor(物理) → Sensors → Controller`。
 
+**双向演进**：controller 的探索不是终点，而是发现 core 短板的探针——算法跑不准、对不上硬件、缺接口，
+往往暴露 core 在精准性 / 准确性 / 可扩展性 / 功能 / 生态上的缺口。探索要**反哺 core**，让 core 越用越强。
+两条主线并行：① 横向拓展 controller 算法空间；② 纵向沉淀共性能力回 core。详见「core 反哺与演进」。
+
 ## 工作约定
 
 - **语言**：与用户对话、代码注释、文档一律用**中文**；matplotlib 标签用**英文**（环境无 CJK 字体），正文中文。
-- **不改 core 原则**：新增控制/观测算法 = 新 Controller，放 `control/` 或 `extensions/`，**不动 `core/`**。
+- **不改 core 原则（默认）**：新增控制/观测算法 = 新 Controller，放 `control/` 或 `extensions/`，**默认不动 `core/`**。
+  这是为避免「为单个算法私改 core」的随意改动，**不是禁止改进 core**——见下方「core 反哺与演进」。
   只有引入**新物理现象**（如磁极饱和）才改 `core/motorsim_core.py` 的 `_deriv`，且必须保持向后兼容（新参数默认值=关闭）。
 - **三个 Protocol**：Controller / Inverter / SensorSuite，见 `docs/01_architecture.md`。实现其一即可插入。
 - **运行**：`control/` 和 `extensions/` 的脚本顶部都有 sys.path 引导指向 `core/`，可直接 `python3 xxx.py`。
 - **pip**：环境装包需 `--break-system-packages`。
+
+## core 反哺与演进
+
+controller 探索中暴露的 core 短板，要按下面五个维度沉淀回 core，让框架越用越强。
+**判据**：凡是「多个 controller 都需要、且属于物理/平台/接口的共性能力」→ 入 core；只服务单算法的逻辑 → 留 controller。
+
+- **精准性（数值）**：积分器精度、步长/刚性、状态量守恒。若 controller 的偏差源自 core 数值误差（而非算法本身），
+  优先修 core 的 `_deriv`/积分器，而不是在 controller 里凑补偿。
+- **准确性（物理保真）**：补全被简化的真实现象（交叉饱和查表、磁路饱和、铁损、温漂、死区/管压降细节），
+  使仿真与 IHM07M1 等真实硬件对得上。新现象一律**向后兼容**（新参数默认关闭，老脚本行为不变）。
+- **可扩展性（接口）**：当某类算法插不进现有 Protocol（Controller/Inverter/SensorSuite），
+  应**扩展接口/新增 Protocol**回 core，而非在 controller 里绕过；保持「实现 Protocol 即可插入」的契约。
+- **功能（共性能力）**：把多个 demo 重复造的轮子（标定子程序、查表补偿、状态估计基类、日志/绘图/指标工具）
+  下沉为 core 可复用组件，避免 controller 间复制粘贴。
+- **生态（可用性）**：稳定的参数预设（硬件对齐配置）、清晰的 Protocol 文档、可被外部 agent 调用的 skill、
+  统一的实验/评测脚手架——降低新 controller 与新贡献者的接入成本。
+
+**反哺流程**：① 在 controller 中复现并定位短板 → ② 判断归属（core 共性 / 算法私有）→
+③ 若归 core，做**最小、向后兼容**的改动并更新 `docs/` 与本文件「待办/已知边界」→ ④ 用既有 demo 回归验证不破坏老行为。
 
 ## 目录
 

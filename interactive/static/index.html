@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>电机交互仿真 · 状态录制器</title>
+<style>
+  :root{ --bg:#1e1e22; --panel:#27272d; --line:#3a3a42; --fg:#e6e6ea; --mut:#9a9aa6; --acc:#4cc2ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:13px/1.4 -apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:8px 12px}
+  .row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+  .grp{display:flex;gap:6px;align-items:center}
+  label.k{color:var(--mut)}
+  select,input[type=number]{background:#1b1b20;color:var(--fg);border:1px solid var(--line);
+    border-radius:5px;padding:3px 6px}
+  input[type=range]{width:150px;accent-color:var(--acc)}
+  button{background:#33333b;color:var(--fg);border:1px solid var(--line);border-radius:5px;
+    padding:5px 12px;cursor:pointer}
+  button:hover{background:#3d3d47}
+  button.pri{background:#1f6f3f;border-color:#2c8f54}
+  button.pri:hover{background:#2c8f54}
+  button.stop{background:#7a2230;border-color:#a23042}
+  button.stop:hover{background:#a23042}
+  button.on{outline:2px solid var(--acc)}
+  .stat{color:var(--mut)}
+  .stat b{color:var(--fg)}
+  main{flex:1;display:flex;min-height:0}
+  #side{width:200px;background:var(--panel);border-right:1px solid var(--line);
+    overflow:auto;padding:8px}
+  #side h4{margin:10px 0 4px;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .ch{display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer}
+  .ch .sw{width:11px;height:11px;border-radius:2px;flex:none}
+  .ch.off{opacity:.4}
+  #plotwrap{flex:1;position:relative;min-width:0}
+  canvas{display:block;width:100%;height:100%}
+  #tip{position:absolute;pointer-events:none;background:#000a;border:1px solid var(--line);
+    border-radius:5px;padding:6px 8px;font-size:12px;display:none;z-index:5;white-space:nowrap}
+  #tip .t{color:var(--mut);margin-bottom:3px}
+  #tip .r{display:flex;justify-content:space-between;gap:12px}
+  .pill{font-size:11px;color:var(--mut);padding:2px 6px;border:1px solid var(--line);border-radius:10px}
+  .pill.live{color:#7CFC9A;border-color:#2c8f54}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="row" style="margin-bottom:8px">
+      <div class="grp"><label class="k">控制算法</label>
+        <select id="ctrl"></select></div>
+      <div class="grp"><label class="k">逆变器</label>
+        <select id="inv"></select></div>
+      <div class="grp"><label class="k">母线 V</label>
+        <input id="vdc" type="number" value="48" step="1" style="width:64px"></div>
+      <div class="grp"><label class="k">限流 A</label>
+        <input id="imax" type="number" value="10" step="0.5" style="width:64px"></div>
+      <button id="apply">应用 / 复位</button>
+      <span style="flex:1"></span>
+      <button id="start" class="pri">▶ 启动电机</button>
+      <button id="stop" class="stop">■ 停止</button>
+      <button id="pause">⏸ 暂停时钟</button>
+    </div>
+    <div class="row">
+      <div class="grp" style="min-width:280px"><label class="k">转速给定</label>
+        <input id="ref" type="range" min="-200" max="200" step="1" value="0">
+        <input id="refn" type="number" value="0" step="1" style="width:70px"><span class="stat">rad/s</span></div>
+      <div class="grp" style="min-width:260px"><label class="k">负载转矩</label>
+        <input id="load" type="range" min="0" max="3" step="0.05" value="0">
+        <input id="loadn" type="number" value="0" step="0.05" style="width:64px"><span class="stat">N·m</span></div>
+      <div class="grp"><label class="k">仿真倍率</label>
+        <input id="speed" type="range" min="0.25" max="2" step="0.05" value="1">
+        <span id="speedv" class="stat">1.00x</span></div>
+      <span style="flex:1"></span>
+      <span class="stat">实时 <b id="rt">–</b>x</span>
+      <span class="stat">缓冲 <b id="buf">0</b></span>
+      <span class="stat">内存 <b id="mem">–</b>MB</span>
+      <span class="stat">t <b id="simt">0.00</b>s</span>
+    </div>
+  </header>
+  <main>
+    <div id="side"></div>
+    <div id="plotwrap">
+      <canvas id="cv"></canvas>
+      <div id="tip"></div>
+      <div style="position:absolute;right:10px;top:8px;display:flex;gap:6px;align-items:center">
+        <span id="livepill" class="pill live">● LIVE</span>
+        <button id="livebtn" style="padding:3px 8px">跟随最新</button>
+        <span class="pill">滚轮缩放 · 拖拽平移</span>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const POST = (u,b) => fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+const GET  = u => fetch(u).then(r=>r.json());
+
+let META=null, visible=new Set(), lastResp=null, hoverX=null;
+const view = { live:true, span:10, t0:null, t1:null };
+const DEFAULT_VISIBLE=['i_a','i_b','i_c','i_d','i_q','omega_m','ref_speed','torque','T_winding'];
+
+// ---------- 初始化元数据 ----------
+async function init(){
+  META = await GET('/api/channels');
+  const cs=$('#ctrl'); META.controllers.forEach(c=>cs.add(new Option(c.label,c.key)));
+  const is=$('#inv'); META.inverters.forEach(c=>is.add(new Option(c.label,c.key)));
+  // 侧栏分组通道开关
+  const side=$('#side'); const groups={};
+  META.channels.forEach(ch=>{ (groups[ch.group]=groups[ch.group]||[]).push(ch); });
+  DEFAULT_VISIBLE.forEach(k=>visible.add(k));
+  for(const g in groups){
+    const h=document.createElement('h4'); h.textContent=g; side.appendChild(h);
+    groups[g].forEach(ch=>{
+      const d=document.createElement('div'); d.className='ch'+(visible.has(ch.key)?'':' off');
+      d.innerHTML=`<span class="sw" style="background:${ch.color}"></span><span>${ch.label}</span>`;
+      d.onclick=()=>{ if(visible.has(ch.key))visible.delete(ch.key); else visible.add(ch.key);
+        d.classList.toggle('off'); };
+      side.appendChild(d);
+    });
+  }
+  const st = await GET('/api/status');
+  $('#ctrl').value=st.controller; $('#inv').value=st.inverter;
+  $('#vdc').value=st.v_dc; $('#imax').value=st.i_max;
+  bindControls();
+  resize(); loop();
+}
+
+// ---------- 控件绑定 ----------
+function bindControls(){
+  $('#apply').onclick=async()=>{ await POST('/api/config',{
+    controller:$('#ctrl').value, inverter:$('#inv').value,
+    v_dc:+$('#vdc').value, i_max:+$('#imax').value}); };
+  $('#start').onclick=()=>POST('/api/cmd',{action:'start'});
+  $('#stop').onclick =()=>POST('/api/cmd',{action:'stop'});
+  let paused=false;
+  $('#pause').onclick=()=>{ paused=!paused;
+    POST('/api/cmd',{action:paused?'pause':'resume'});
+    $('#pause').classList.toggle('on',paused);
+    $('#pause').textContent=paused?'⏵ 继续时钟':'⏸ 暂停时钟'; };
+  const ref=$('#ref'),refn=$('#refn');
+  const syncRef=v=>{ ref.value=v; refn.value=v; POST('/api/cmd',{ref:+v}); };
+  ref.oninput=()=>syncRef(ref.value); refn.onchange=()=>syncRef(refn.value);
+  const load=$('#load'),loadn=$('#loadn');
+  const syncLoad=v=>{ load.value=v; loadn.value=v; POST('/api/cmd',{load:+v}); };
+  load.oninput=()=>syncLoad(load.value); loadn.onchange=()=>syncLoad(loadn.value);
+  $('#speed').oninput=()=>{ const v=(+$('#speed').value).toFixed(2);
+    $('#speedv').textContent=v+'x'; POST('/api/cmd',{speed:+v}); };
+  $('#livebtn').onclick=()=>{ view.live=true; };
+  // 缩放/平移
+  const cv=$('#cv');
+  cv.addEventListener('wheel',e=>{ e.preventDefault();
+    if(!lastResp) return;
+    const r=cv.getBoundingClientRect();
+    const frac=(e.clientX-r.left)/r.width;
+    const tc=view.t0+(view.t1-view.t0)*frac;       // 光标处时间
+    const k=e.deltaY>0?1.2:1/1.2;
+    let span=(view.t1-view.t0)*k; span=Math.max(0.002,Math.min(view.spanMax||10,span));
+    view.t0=tc-span*frac; view.t1=tc+span*(1-frac);
+    view.live=false; clampView();
+  },{passive:false});
+  let drag=null;
+  cv.addEventListener('mousedown',e=>{ drag={x:e.clientX,t0:view.t0,t1:view.t1}; view.live=false; });
+  window.addEventListener('mouseup',()=>drag=null);
+  window.addEventListener('mousemove',e=>{
+    if(drag){ const r=cv.getBoundingClientRect();
+      const dt=(e.clientX-drag.x)/r.width*(drag.t1-drag.t0);
+      view.t0=drag.t0-dt; view.t1=drag.t1-dt; clampView(); }
+  });
+  cv.addEventListener('mousemove',e=>{ const r=cv.getBoundingClientRect();
+    hoverX=e.clientX-r.left; draw(); });
+  cv.addEventListener('mouseleave',()=>{ hoverX=null; draw(); });
+  window.addEventListener('resize',resize);
+}
+function clampView(){
+  if(!lastResp) return;
+  const oldest=lastResp.status.buf_oldest, latest=lastResp.status.sim_t;
+  let span=view.t1-view.t0;
+  if(view.t1>latest){ view.t1=latest; view.t0=latest-span; }
+  if(view.t0<oldest){ view.t0=oldest; view.t1=Math.min(latest,oldest+span); }
+}
+
+// ---------- 画布尺寸 ----------
+let cv,ctx,W,H,DPR;
+function resize(){ cv=$('#cv'); const r=cv.getBoundingClientRect(); DPR=window.devicePixelRatio||1;
+  W=Math.floor(r.width); H=Math.floor(r.height);
+  cv.width=W*DPR; cv.height=H*DPR; ctx=cv.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0); }
+
+// ---------- 轮询 ----------
+async function loop(){
+  try{
+    const vis=[...visible];
+    const body={width:W,keys:vis};
+    if(view.live){ body.live=true; body.span=view.span; }
+    else { body.t0=view.t0; body.t1=view.t1; }
+    const resp=await POST('/api/data',body);
+    lastResp=resp;
+    const st=resp.status; view.spanMax=st.window_s;
+    if(view.live){ view.t0=resp.t0; view.t1=resp.t1; }
+    // 状态栏
+    $('#rt').textContent=st.rt_ratio.toFixed(2);
+    $('#buf').textContent=`${st.buf_count}/${st.buf_capacity}`;
+    $('#mem').textContent=st.mem_mb;
+    $('#simt').textContent=st.sim_t.toFixed(2);
+    $('#livepill').style.display=view.live?'inline':'none';
+    draw();
+  }catch(e){ /* 网络抖动忽略 */ }
+  setTimeout(loop,50);
+}
+
+// ---------- 渲染 ----------
+const AXIS_H=22, GAP=4, LABELW=0;
+function draw(){
+  if(!ctx) return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1e1e22'; ctx.fillRect(0,0,W,H);
+  if(!lastResp){ return; }
+  const vis=META.channels.filter(c=>visible.has(c.key));
+  const t0=view.t0, t1=view.t1, span=t1-t0||1;
+  const width=lastResp.width;
+  // 时间轴
+  ctx.fillStyle='#9a9aa6'; ctx.font='11px sans-serif';
+  ctx.strokeStyle='#3a3a42'; ctx.beginPath();
+  const nT=6;
+  for(let i=0;i<=nT;i++){ const x=i/nT*W; const tt=t0+span*i/nT;
+    ctx.moveTo(x,0); ctx.lineTo(x,H);
+    ctx.fillText(tt.toFixed(span<0.1?4:(span<2?3:2))+'s', Math.min(x+3,W-44), 13); }
+  ctx.stroke();
+  if(vis.length===0){ ctx.fillStyle='#9a9aa6';
+    ctx.fillText('左侧勾选通道以显示', 16, 50); return; }
+  const laneH=(H-AXIS_H-GAP)/vis.length;
+  vis.forEach((ch,idx)=>{
+    const top=AXIS_H+idx*laneH+GAP/2, h=laneH-GAP;
+    drawLane(ch, lastResp.series[ch.key], top, h, width, t0, span);
+  });
+  drawCrosshair(vis, laneH, t0, span, width);
+}
+
+function drawLane(ch, ser, top, h, width, t0, span){
+  // 背景 + 边框
+  ctx.fillStyle='#232329'; ctx.fillRect(0,top,W,h);
+  if(!ser){ return; }
+  const mn=ser.min, mx=ser.max;
+  // 自动 y 量程
+  let lo=Infinity, hi=-Infinity;
+  for(let i=0;i<width;i++){ if(mn[i]!=null){ if(mn[i]<lo)lo=mn[i]; if(mx[i]>hi)hi=mx[i]; } }
+  if(lo===Infinity){ lo=-1; hi=1; }
+  if(hi-lo<1e-9){ hi+=1; lo-=1; }
+  const pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
+  const Y=v=> top+h-(v-lo)/(hi-lo)*h;
+  // 零线
+  if(lo<0&&hi>0){ ctx.strokeStyle='#3a3a42'; ctx.beginPath();
+    ctx.moveTo(0,Y(0)); ctx.lineTo(W,Y(0)); ctx.stroke(); }
+  // min/max 包络（填充）
+  ctx.fillStyle=ch.color+'55';
+  ctx.beginPath(); let started=false;
+  for(let i=0;i<width;i++){ if(mx[i]==null) continue; const x=i/width*W;
+    if(!started){ ctx.moveTo(x,Y(mx[i])); started=true; } else ctx.lineTo(x,Y(mx[i])); }
+  for(let i=width-1;i>=0;i--){ if(mn[i]==null) continue; const x=i/width*W; ctx.lineTo(x,Y(mn[i])); }
+  if(started){ ctx.closePath(); ctx.fill(); }
+  // 中线
+  ctx.strokeStyle=ch.color; ctx.lineWidth=1; ctx.beginPath(); started=false;
+  for(let i=0;i<width;i++){ if(mn[i]==null) continue; const x=i/width*W; const y=Y((mn[i]+mx[i])/2);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+  ctx.stroke();
+  // 标签 + 量程 + 当前值
+  ctx.fillStyle=ch.color; ctx.font='11px sans-serif';
+  ctx.fillText(`${ch.label}`, 6, top+12);
+  ctx.fillStyle='#9a9aa6';
+  ctx.fillText(`${hi.toFixed(2)}`, 6, top+22);
+  ctx.fillText(`${lo.toFixed(2)} ${ch.unit}`, 6, top+h-4);
+  const cur=ser.last; if(cur!=null){
+    ctx.fillStyle=ch.color; ctx.textAlign='right';
+    ctx.fillText(`${cur.toFixed(3)} ${ch.unit}`, W-6, top+12); ctx.textAlign='left'; }
+}
+
+function drawCrosshair(vis, laneH, t0, span, width){
+  $('#tip').style.display='none';
+  if(hoverX==null||hoverX<0||hoverX>W) return;
+  ctx.strokeStyle='#ffffff66'; ctx.beginPath(); ctx.moveTo(hoverX,AXIS_H); ctx.lineTo(hoverX,H); ctx.stroke();
+  const col=Math.max(0,Math.min(width-1,Math.floor(hoverX/W*width)));
+  const tt=t0+span*(col+0.5)/width;
+  let rows=`<div class="t">t = ${tt.toFixed(4)} s</div>`;
+  vis.forEach(ch=>{ const s=lastResp.series[ch.key]; if(!s)return;
+    const a=s.min[col], b=s.max[col]; const v=(a==null)?'—':((a+b)/2).toFixed(3);
+    rows+=`<div class="r"><span style="color:${ch.color}">${ch.label}</span><span>${v} ${ch.unit}</span></div>`; });
+  const tip=$('#tip'); tip.innerHTML=rows; tip.style.display='block';
+  const pr=$('#plotwrap').getBoundingClientRect();
+  let lx=hoverX+14; if(lx>W-180) lx=hoverX-14-180;
+  tip.style.left=Math.max(0,lx)+'px'; tip.style.top='28px';
+}
+
+init();
+</script>
+</body>
+</html>

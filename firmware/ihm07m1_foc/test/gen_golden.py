@@ -6,7 +6,7 @@
 确保固件移植与仿真"同输入同输出"。"""
 import sys, os, math
 HERE = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(HERE, "..", "..", "core"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "core"))   # repo/core
 from motorsim_core import (clarke, inv_clarke, park, inv_park,
                            ElectricalParams, MotorConfig, ThermalParams,
                            InverterLimits, FieldWeakeningFOC, Measurements,
@@ -21,7 +21,7 @@ def svpwm_duty(v_alpha, v_beta, v_dc):
     return [min(1.0, max(0.0, d)) for d in duty]
 
 lines = []
-lines.append("/* 自动生成: firmware/test/gen_golden.py —— 勿手改。FOC 黄金参考值（来自仿真 core）*/")
+lines.append("/* 自动生成: firmware/ihm07m1_foc/test/gen_golden.py —— 勿手改。FOC 黄金参考值（来自仿真 core）*/")
 lines.append("#ifndef GOLDEN_H\n#define GOLDEN_H\n")
 
 # 1) Clarke/Park 变换抽样

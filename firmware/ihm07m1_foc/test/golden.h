@@ -1,4 +1,4 @@
-/* 自动生成: firmware/test/gen_golden.py —— 勿手改。FOC 黄金参考值（来自仿真 core）*/
+/* 自动生成: firmware/ihm07m1_foc/test/gen_golden.py —— 勿手改。FOC 黄金参考值（来自仿真 core）*/
 #ifndef GOLDEN_H
 #define GOLDEN_H
 

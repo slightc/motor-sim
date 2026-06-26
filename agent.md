@@ -18,8 +18,11 @@
   这是为避免「为单个算法私改 core」的随意改动，**不是禁止改进 core**——见下方「core 反哺与演进」。
   只有引入**新物理现象**（如磁极饱和）才改 `core/motorsim_core.py` 的 `_deriv`，且必须保持向后兼容（新参数默认值=关闭）。
 - **三个 Protocol**：Controller / Inverter / SensorSuite，见 `docs/01_architecture.md`。实现其一即可插入。
-- **运行**：`control/` 和 `extensions/` 的脚本顶部都有 sys.path 引导指向 `core/`，可直接 `python3 xxx.py`。
-- **pip**：环境装包需 `--break-system-packages`。
+- **运行**：`control/` 和 `extensions/` 的脚本顶部都有 sys.path 引导指向 `core/`，可直接 `python3 xxx.py`，
+  或经受管环境 `uv run python xxx.py`。
+- **依赖（uv）**：用 uv 管理。`uv sync` 建 `.venv` 并装依赖；加依赖改 `pyproject.toml` 后 `uv lock`。
+  运行期唯一第三方依赖是 `numpy`（可视化 matplotlib 在 `--group plot`）；`interactive/` 纯标准库。
+  `pyproject.toml` / `uv.lock` / `.python-version` 均纳入版本控制。裸环境用 pip 装包需 `--break-system-packages`。
 
 ## core 反哺与演进
 

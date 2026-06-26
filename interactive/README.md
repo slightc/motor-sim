@@ -7,8 +7,10 @@
 
 ## 运行
 
+本界面是纯标准库，无需任何依赖，可直接用系统 Python 运行；也可通过 uv 运行（与全仓一致）：
+
 ```bash
-python3 interactive/server.py            # 默认 http://127.0.0.1:8090
+uv run python interactive/server.py          # 默认 http://127.0.0.1:8090
 python3 interactive/server.py 8090 0.0.0.0   # 指定端口/监听地址
 ```
 

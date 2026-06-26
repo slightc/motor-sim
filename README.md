@@ -18,13 +18,27 @@ skills/      motorsim / pio skill (供外部 agent 调用)
 agent.md     agent 工作指南 (claude.md 为其软链接)
 ```
 
+## 环境与依赖（uv）
+
+用 [uv](https://docs.astral.sh/uv/) 管理依赖。运行期唯一第三方依赖是 `numpy`
+（core 的 `Recorder.array` 与 `control/` 各 demo 用到）；交互界面 `interactive/` 为纯标准库。
+
+```bash
+uv sync                 # 按 uv.lock 创建 .venv 并装好依赖
+uv sync --group plot    # 额外装可视化依赖(matplotlib)
+uv run python xxx.py    # 在受管环境里运行
+```
+
+`pyproject.toml` 声明依赖、`uv.lock` 锁定版本、`.python-version` 固定解释器（均已纳入版本控制）。
+未装 uv 时仍可直接 `python3 xxx.py`（自备 numpy）。
+
 ## 快速开始
 
 ```bash
 cd control
-python3 01_foc_sensored.py              # 有感 FOC 基线
-python3 08_fullrange_fusion.py          # 全速域融合(HFI⊕EKF)
-python3 10_position_servo_closedloop.py # 闭环无感位置伺服 <1°
+uv run python 01_foc_sensored.py              # 有感 FOC 基线
+uv run python 08_fullrange_fusion.py          # 全速域融合(HFI⊕EKF)
+uv run python 10_position_servo_closedloop.py # 闭环无感位置伺服 <1°
 ```
 
 落到真机（`firmware/` 下每块硬件一个独立工程，如 X-NUCLEO-IHM07M1 + NUCLEO-F302R8）：

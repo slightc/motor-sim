@@ -1,0 +1,23 @@
+[project]
+name = "motorsim"
+version = "0.1.0"
+description = "模块化 PMSM 仿真与无感控制研究框架（物理归 core，算法归 controller）"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+# 运行期唯一的第三方依赖是 numpy（core 的 Recorder.array 与 control/ 各 demo 用到）。
+# 交互式仿真界面 interactive/ 为纯标准库，不需要任何依赖。
+dependencies = [
+    "numpy>=1.26",
+]
+
+[dependency-groups]
+# 可选的开发/可视化依赖：uv sync --group plot 安装
+plot = [
+    "matplotlib>=3.8",
+]
+
+[tool.uv]
+# 本仓库用 sys.path 直接引模块运行（非可安装包），故不构建/安装工程自身，
+# uv 只负责管理依赖与虚拟环境。
+package = false

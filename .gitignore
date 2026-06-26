@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PlatformIO / 固件构建产物
+.pio/
+firmware/.pio/
+# 固件主机回归生成的二进制
+test_foc_host

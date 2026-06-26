@@ -34,6 +34,11 @@ Controller(sim) ──移植──> 固件(MCU)     真机日志 ──标定─
 | `Inverter.apply`（死区/补偿） | TIM1 死区寄存器 + 软件补偿 | 死区用真实电流、补偿用测量电流 |
 | `Observation`（真值） | 真机**无真值**，只有 `Measurements` | 评估时用高精编码器/示波器做近似真值 |
 
+> **已落地实现**：`firmware/`（PlatformIO，STM32Cube HAL）已按上表把 `01_foc_sensored.py`
+> 的控制律移植成 IHM07M1+F302R8 固件。算法核心 `firmware/src/foc.c` 是 `core/motorsim_core.py`
+> 的逐行移植，并有 PC 端逐点回归（`firmware/test/`，`bash firmware/test/run_host_test.sh`）
+> 守住"固件==仿真"。构建/烧录/引脚映射见 `firmware/README.md` 与 `skills/pio/SKILL.md`。
+
 ### 2.2 IHM07M1 硬件约束（详见 `04_hardware_ihm07m1.md`）
 
 - **必须三分流**（J5/J6）：低速/低调制下单分流相电流重构不可靠。

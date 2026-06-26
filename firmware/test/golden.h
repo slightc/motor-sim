@@ -29,4 +29,15 @@ static const iloop_t GOLDEN_ILOOP[] = {
 static const int GOLDEN_ILOOP_N = 3;
 static const float GOLDEN_DT = 0.000050000f;
 
+typedef struct { float ia,ib,va,vb; } obsdrv_t;
+/* C 端用这些常量自行重建完整 400 拍驱动（与上面公式一致），只比对末态 */
+static const float OBS_WE = 240.000000000f;
+static const float OBS_PSI = 0.030000000f;
+static const int   OBS_N  = 400;
+static const float OBS_R = 0.5f, OBS_L = 0.006f;
+static const int   OBS_P = 4;
+static const float OBS_FLP = 2000.0f;
+static const float OBS_THETA_FINAL = 4.816945570f;
+static const float OBS_OMEGA_FINAL = 239.903190181f;
+
 #endif /* GOLDEN_H */

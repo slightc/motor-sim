@@ -83,6 +83,52 @@ void  foc_inv_park(float d, float q, float th, float *alpha, float *beta);
  * v_dc 为母线电压。占空比已钳位到 [0,1]。 */
 void  foc_svpwm(float v_alpha, float v_beta, float v_dc, float duty[3]);
 
+/* ============================================================================
+ * 无感：反电动势观测器 + PLL（对应仿真 core 的 BackEMFObserver）
+ * ----------------------------------------------------------------------------
+ * 仅用电流测量 i_αβ 与上一拍施加电压 v_αβ 解算转子电角：
+ *   e_hat = v - R·i - L·di/dt  → 低通 → PLL 锁相。
+ * 关键：PLL 误差按 |e| 归一化，所以**只需 R 与 L，不需要 ψ**（ψ 只改 |e| 幅值，
+ * 被归一化抵消）——这也是自整定只测 Rs/Ld/Lq 即可跑无感的原因。中高速有效。
+ * ========================================================================== */
+typedef struct {
+    float R, L;             /* 观测用电阻/电感（自整定回填）*/
+    int   pole_pairs;
+    float kp_pll, ki_pll;   /* PLL 增益（仿真默认 300 / 20000）*/
+    float f_lp;             /* di/dt 噪声低通截止 (Hz)，仿真无感用 2000 */
+    /* 状态 */
+    float theta;            /* 估计电角 (rad) */
+    float omega_e;          /* 估计电角速度 (rad/s) */
+    float pll_i;            /* PLL 积分 */
+    float i_prev_a, i_prev_b;
+    int   has_prev;
+    float e_lp_a, e_lp_b;   /* 低通后的反电动势 αβ */
+} bemf_obs_t;
+
+void  bemf_obs_init(bemf_obs_t *o, float R, float L, int pole_pairs, float f_lp);
+/* 用 i_αβ 与上一拍 v_αβ 推进一拍，返回估计电角/电角速度（也写进 o->theta/omega_e）。*/
+void  bemf_obs_update(bemf_obs_t *o, float ia, float ib, float va, float vb,
+                      float dt, float *theta, float *omega_e);
+/* 启动切换时强制对齐观测器状态（开环 I/f 交接到闭环用）。*/
+void  bemf_obs_preset(bemf_obs_t *o, float theta0, float omega_e0);
+
+/* 无感 FOC 一拍（对应仿真 SensorlessFOC.compute）：
+ * 用观测器估角做 Park/反 Park，id_ref=0 + 速度环给 iq_ref，输出三相占空比。
+ * f 复用电流/速度环增益与积分；o 为反电动势观测器；v_prev_* 为上一拍 αβ 电压（内部更新）。
+ * 返回估计机械速度 (rad/s)。 */
+typedef struct {
+    bemf_obs_t obs;
+    float v_prev_a, v_prev_b;   /* 上一拍施加的 αβ 参考电压（喂观测器）*/
+    float omega_m_est;          /* 估计机械速度 */
+} sensorless_t;
+
+void  sensorless_init(sensorless_t *s, const foc_t *f, float f_lp);
+/* 设无感专用环增益（仿真 SensorlessFOC：kp_w=0.5,ki_w=8, 电流环同 12/3000）。*/
+void  foc_set_sensorless_gains(foc_t *f);
+/* 一拍无感闭环。omega_ref 机械速度设定；返回估计机械速度。*/
+float sensorless_step(sensorless_t *s, foc_t *f, float omega_ref,
+                      float ia, float ib, float ic, float dt);
+
 #ifdef __cplusplus
 }
 #endif

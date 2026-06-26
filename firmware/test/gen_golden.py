@@ -9,7 +9,8 @@ HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "core"))
 from motorsim_core import (clarke, inv_clarke, park, inv_park,
                            ElectricalParams, MotorConfig, ThermalParams,
-                           InverterLimits, FieldWeakeningFOC, Measurements)
+                           InverterLimits, FieldWeakeningFOC, Measurements,
+                           BackEMFObserver)
 
 def svpwm_duty(v_alpha, v_beta, v_dc):
     """复刻 SVPWMInverter 的零序注入 + 占空比换算（与 foc_svpwm 对应）。"""
@@ -89,6 +90,39 @@ for r in seq:
 lines.append("};")
 lines.append("static const int GOLDEN_ILOOP_N = %d;" % len(seq))
 lines.append("static const float GOLDEN_DT = %.9ff;\n" % DT)
+
+# 4) 反电动势观测器（无感）：喂合成 i_αβ / v_αβ 序列，比对 BackEMFObserver 的 θ/ω。
+#    合成一个 ω_e=240 rad/s（电）旋转的反电动势 + 阻性电流，确保 PLL 能锁。
+obs = BackEMFObserver(R=0.5, L=6e-3, p=4, f_lp=2000.0)
+WE = 240.0          # 电角速度 (rad/s)
+PSI = 0.03
+obs.theta = 0.0; obs.omega_e = WE; obs.pll_i = WE   # 预置（对应固件 bemf_obs_preset）
+obs_rows = []
+th_true = 0.0
+ia = ib = 0.0
+for k in range(400):
+    th_true = (th_true + WE * DT) % (2 * math.pi)
+    # 端电压 ≈ 反电动势（忽略压降的合成激励），电流取与 BEMF 同相的小幅值
+    v_al = -WE * PSI * math.sin(th_true)
+    v_be =  WE * PSI * math.cos(th_true)
+    ia = 0.3 * math.cos(th_true)
+    ib = 0.3 * math.sin(th_true)
+    th_est, we_est = obs.update(ia, ib, v_al, v_be, DT)
+    if k % 40 == 0 or k >= 396:    # 抽样若干拍比对
+        obs_rows.append((ia, ib, v_al, v_be, th_est, we_est))
+# 仅比对最后几拍（PLL 收敛后），并记录完整驱动序列让 C 端逐拍跑到同一状态
+lines.append("typedef struct { float ia,ib,va,vb; } obsdrv_t;")
+lines.append("/* C 端用这些常量自行重建完整 400 拍驱动（与上面公式一致），只比对末态 */")
+lines.append("static const float OBS_WE = %.9ff;" % WE)
+lines.append("static const float OBS_PSI = %.9ff;" % PSI)
+lines.append("static const int   OBS_N  = 400;")
+lines.append("static const float OBS_R = 0.5f, OBS_L = 0.006f;")
+lines.append("static const int   OBS_P = 4;")
+lines.append("static const float OBS_FLP = 2000.0f;")
+# 末态参考
+th_f, we_f = obs.theta, obs.omega_e
+lines.append("static const float OBS_THETA_FINAL = %.9ff;" % th_f)
+lines.append("static const float OBS_OMEGA_FINAL = %.9ff;\n" % we_f)
 
 lines.append("#endif /* GOLDEN_H */")
 out = "\n".join(lines) + "\n"

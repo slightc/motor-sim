@@ -27,16 +27,19 @@ description: >
 firmware/
   platformio.ini              env=nucleo_f302r8, framework=stm32cube
   include/
-    foc.h                     FOC 算法接口（纯算法，零硬件依赖）
+    foc.h                     FOC + 无感观测器接口（纯算法，零硬件依赖）
+    param_id.h                参数自整定接口
     bsp_ihm07m1.h             板级常数 + 引脚映射（换板子只改这里）
     stm32f3xx_hal_conf.h      HAL 模块裁剪
   src/
-    foc.c                     Clarke/Park/PI 双环/SVPWM（移植自仿真 core）
+    foc.c                     Clarke/Park/PI 双环/SVPWM（移植自 FieldWeakeningFOC）
+    foc_sensorless.c          反电动势观测器 + PLL + 无感 FOC（移植自 BackEMFObserver/SensorlessFOC）
+    param_id.c                参数自整定状态机（Rs/Ld/Lq，docs/05 §3.2）
     bsp_ihm07m1.c             TIM1 PWM / ADC 注入 / 编码器 / 时钟（HAL）
-    main.c                    控制编排：开环 I/f + 有感闭环 + ADC 中断电流环
-    stm32f3xx_it.c            ADC 注入完成中断 → 跑一拍 FOC
+    main.c                    模式编排：PARAM_ID→SENSORLESS 默认流程；ADC 中断电流环
+    stm32f3xx_it.c            ADC 注入完成中断 → 跑一拍控制
   test/
-    foc.c 的 PC 原生回归（gen_golden.py / test_foc_host.c / run_host_test.sh）
+    PC 原生回归（gen_golden.py / test_foc_host.c / run_host_test.sh）
 ```
 
 ## 常用命令
@@ -65,6 +68,18 @@ pio check                     # 静态检查
 
 PI 增益、限幅、电机参数全部取仿真默认值（`FieldWeakeningFOC`：kp_i=12, ki_i=3000,
 kp_w=0.6, ki_w=10）。改算法 = 改 `foc.c`，**改完先跑回归**。
+
+## 无感 FOC + 自动测量参数（默认主线）
+
+```
+上电 → MODE_PARAM_ID 静止自测 Rs/Ld/Lq → 回填 → MODE_SENSORLESS：I/f 起转 → 反电动势观测器闭环
+```
+
+- **无感观测器**（`foc_sensorless.c`，移植 `BackEMFObserver`）：`e=v−Ri−L·di/dt → 低通 → PLL`。
+  PLL 按 |e| 归一化 → **只需 R/L，不需 ψ**；中高速有效，低速失锁（低速要 HFI，未移植）。
+- **参数自整定**（`param_id.c`，docs/05 §3.2）：θ=0 下 d 轴两级 DC 注入测 `Rs=ΔV/ΔI`；
+  d/q 轴方波高频注入测电流纹波 `L=V·dt/Δi`。ψ 在旋转段 `ψ=(Vq−R·iq)/ωe` 顺带估、上报。
+- 极对数 `p` 测不出，由 `BSP_MOTOR_POLEPAIRS` 配；自整定前**务必脱开负载**。
 
 ## 仿真↔固件回归（关键：保证移植不走样）
 

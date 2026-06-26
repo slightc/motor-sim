@@ -7,7 +7,7 @@
 ```
 core/        仿真核心 + 官方扩展(逆变器/传感器)
 control/     11 个控制算法 demo (FOC / 反电动势 / HFI / 方波 / EKF / 融合 / I/f / 定位)
-firmware/    STM32 固件: IHM07M1+F302R8 基础 FOC (PlatformIO, 移植自仿真 core)
+firmware/    STM32 固件: IHM07M1+F302R8 有感/无感 FOC + 参数自整定 (PlatformIO, 移植自 core)
 docs/        文档(总览/架构/物理/控制方法/硬件)
 extensions/  自定义控制器与传感器模板
 skills/      motorsim / pio skill (供外部 agent 调用)

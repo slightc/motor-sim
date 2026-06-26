@@ -34,6 +34,18 @@ Controller(sim) ──移植──> 固件(MCU)     真机日志 ──标定─
 | `Inverter.apply`（死区/补偿） | TIM1 死区寄存器 + 软件补偿 | 死区用真实电流、补偿用测量电流 |
 | `Observation`（真值） | 真机**无真值**，只有 `Measurements` | 评估时用高精编码器/示波器做近似真值 |
 
+> **已落地实现**：`firmware/ihm07m1_foc/`（PlatformIO，STM32Cube HAL）已把控制律移植成 IHM07M1+F302R8 固件：
+> - 有感 FOC（`foc.c` ← `FieldWeakeningFOC` / `01_foc_sensored.py`）
+> - **无感 FOC**（`foc_sensorless.c` ← `BackEMFObserver`/`SensorlessFOC` / `02_sensorless_backemf.py`）
+> - **参数自整定**（`param_id.c`）：上电静止自测 Rs/Ld/Lq，正是本节 §3.2 标定实验的在线版
+>   （Rs=DC 注入差分、Ld/Lq=高频注入测纹波、ψ=旋转段 BEMF）。默认流程
+>   `自测参数 → 无感 I/f 起转 → 反电动势观测器闭环`，无需位置传感器、无需预知电气参数。
+>
+> 算法核心是 `core/motorsim_core.py` 的逐行移植，并有 PC 端逐点回归
+> （`bash firmware/ihm07m1_foc/test/run_host_test.sh`：Clarke/Park/SVPWM/电流环/反电动势观测器与 core 逐点对齐，
+> 自整定用合成 R-L 电机回收已知参数）守住"固件==仿真"。`firmware/` 下每块硬件一个独立工程，
+> 详见 `firmware/README.md`（工程索引）、`firmware/ihm07m1_foc/README.md` 与 `skills/pio/SKILL.md`。
+
 ### 2.2 IHM07M1 硬件约束（详见 `04_hardware_ihm07m1.md`）
 
 - **必须三分流**（J5/J6）：低速/低调制下单分流相电流重构不可靠。
@@ -111,15 +123,27 @@ T_winding(若有热电偶), v_dc, setpoint, t_load(台架转矩), 工况标签
 
 输出一份 `report.json`（每工况误差 + 总分），与上一版 diff。
 
+> **人读版报告**：单次上板验证用 `firmware/ihm07m1_foc/docs/validation_report_template.md`
+> 模板填写（元信息/上电安全/自整定/有感/无感/对齐/结论），存 `data/real/validation/`；
+> `report.json` 是机读的回归门槛，验证报告是人读的结论与归因，两者配套。
+
 ### 4.3 防退化门槛
 
 ```bash
-python3 tools/regress.py --golden data/real/golden --config presets/ihm07m1_motorX.py
-# 退出码非 0 = 任一指标超容差或较基线变差 → 拒绝合入
+python3 tools/regress.py --golden data/real/golden --config presets/ihm07m1_motorX.py \
+                         --baseline report.json --out report.json
+# 退出码非 0 = 任一指标超容差或较基线变差(>5%) → 拒绝合入
+python3 tools/regress.py --selftest      # 无硬件先自检整条链路（合成黄金）
 ```
 
+`tools/regress.py` 已实现：用真机录波的输入序列（`v_abc`+`t_load`）开环重放驱动 `MotorPlant`，
+逐点比对 `i_dq/θ_e/ω_m`（及 `T_winding`），按 §4.2 容差判定，产出 `report.json`。
+重放隔离控制器、只考**电机模型准确性**，正是「模型对齐闭环」的度量。纯 stdlib，无 numpy 依赖。
+录波格式与示例预设见 `data/real/README.md` 与 `presets/example_ihm07m1.py`。
+
 - **基线快照**：每次接受的改动把 `report.json` 存为新基线。
-- **门槛规则**：新报告任一指标不得比基线变差超过阈值；改善则更新基线。
+- **门槛规则**：新报告任一指标不得比基线变差超过阈值（默认 5%）；改善则更新基线。
+- **自检**：`--selftest` 用合成黄金验证「同模型重放≈0 误差(PASS) / 扰动模型被拦(FAIL)」。
 - 适合挂到 CI / pre-merge，使 core 演进**单调向真机收敛**。
 
 ### 4.4 迭代节奏

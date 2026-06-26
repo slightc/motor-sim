@@ -186,8 +186,11 @@ ax.set_xlabel("t [µs]"); ax.set_ylabel("v [V]"); ax.legend(loc="upper right"); 
 plt.tight_layout(rect=[0, 0, 1, 0.975])
 out_dir = os.path.join(os.path.dirname(__file__), "..", "data", "sim")
 os.makedirs(out_dir, exist_ok=True)
-_name = "11_foc_svpwm_observe.png" if SCENARIO == "clean" else f"11_foc_svpwm_observe_{SCENARIO}.png"
-out = os.path.abspath(os.path.join(out_dir, _name))
-plt.savefig(out, dpi=200)    # 17x12in @200dpi = 3400x2400 px (>2K)
+_stem = "11_foc_svpwm_observe" if SCENARIO == "clean" else f"11_foc_svpwm_observe_{SCENARIO}"
+out_png = os.path.abspath(os.path.join(out_dir, _stem + ".png"))
+out_svg = os.path.abspath(os.path.join(out_dir, _stem + ".svg"))
+plt.savefig(out_png, dpi=200)        # 17x12in @200dpi = 3400x2400 px (>2K)
+plt.savefig(out_svg)                 # 矢量(无限缩放不糊)
 print("-" * 60)
-print(f"波形已保存: {out}")
+print(f"波形已保存(PNG 2K): {out_png}")
+print(f"波形已保存(SVG 矢量): {out_svg}")

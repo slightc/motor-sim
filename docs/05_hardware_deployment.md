@@ -123,6 +123,10 @@ T_winding(若有热电偶), v_dc, setpoint, t_load(台架转矩), 工况标签
 
 输出一份 `report.json`（每工况误差 + 总分），与上一版 diff。
 
+> **人读版报告**：单次上板验证用 `firmware/ihm07m1_foc/docs/validation_report_template.md`
+> 模板填写（元信息/上电安全/自整定/有感/无感/对齐/结论），存 `data/real/validation/`；
+> `report.json` 是机读的回归门槛，验证报告是人读的结论与归因，两者配套。
+
 ### 4.3 防退化门槛
 
 ```bash

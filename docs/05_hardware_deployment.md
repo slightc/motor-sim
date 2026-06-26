@@ -130,12 +130,20 @@ T_winding(若有热电偶), v_dc, setpoint, t_load(台架转矩), 工况标签
 ### 4.3 防退化门槛
 
 ```bash
-python3 tools/regress.py --golden data/real/golden --config presets/ihm07m1_motorX.py
-# 退出码非 0 = 任一指标超容差或较基线变差 → 拒绝合入
+python3 tools/regress.py --golden data/real/golden --config presets/ihm07m1_motorX.py \
+                         --baseline report.json --out report.json
+# 退出码非 0 = 任一指标超容差或较基线变差(>5%) → 拒绝合入
+python3 tools/regress.py --selftest      # 无硬件先自检整条链路（合成黄金）
 ```
 
+`tools/regress.py` 已实现：用真机录波的输入序列（`v_abc`+`t_load`）开环重放驱动 `MotorPlant`，
+逐点比对 `i_dq/θ_e/ω_m`（及 `T_winding`），按 §4.2 容差判定，产出 `report.json`。
+重放隔离控制器、只考**电机模型准确性**，正是「模型对齐闭环」的度量。纯 stdlib，无 numpy 依赖。
+录波格式与示例预设见 `data/real/README.md` 与 `presets/example_ihm07m1.py`。
+
 - **基线快照**：每次接受的改动把 `report.json` 存为新基线。
-- **门槛规则**：新报告任一指标不得比基线变差超过阈值；改善则更新基线。
+- **门槛规则**：新报告任一指标不得比基线变差超过阈值（默认 5%）；改善则更新基线。
+- **自检**：`--selftest` 用合成黄金验证「同模型重放≈0 误差(PASS) / 扰动模型被拦(FAIL)」。
 - 适合挂到 CI / pre-merge，使 core 演进**单调向真机收敛**。
 
 ### 4.4 迭代节奏

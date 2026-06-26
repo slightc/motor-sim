@@ -154,8 +154,10 @@ e_hat = v_αβ − R·i_αβ − L·di_αβ/dt   → 一阶低通 → PLL 锁相
    存为 `data/real/validation/<日期>_<电机>_<固件版本>.md`，原始录波另存 CSV（docs/05 §3.1 字段）。
 3. **比对什么、按什么容差**：真机无真值——**用编码器读数作近似真值**评估无感角度误差
    （docs/05 §2.1）；指标与容差对齐 docs/05 §4.2（电流 RMSE <5%、稳态角误差 <1°电、速度阶跃 <10%）。
-4. **回归而非一次性**：用真机输入序列驱动仿真逐点比对，超容差就归因（参数不准→调 `MotorConfig`；
+4. **回归而非一次性**：用 `python3 tools/regress.py --golden data/real/golden --config presets/<motor>.py`
+   把真机录波输入序列驱动仿真逐点比对（产出 `report.json`），超容差就归因（参数不准→调 `MotorConfig`；
    系统性偏差→补 core `_deriv`，向后兼容），并把该工况纳入 golden set（docs/05 §4）。
+   无硬件可先 `python3 tools/regress.py --selftest` 验证整条链路。
 5. **失败照实记**：失败样本是 core 标定的高价值数据，别只报成功项。
 
 > 本固件可直接验证的关键结论：自整定测得的 Rs/Lq 能否驱动无感观测器锁相（观测器仅需 R/L、不需 ψ），

@@ -9,6 +9,9 @@ core/        仿真核心 + 官方扩展(逆变器/传感器)
 control/     11 个控制算法 demo (FOC / 反电动势 / HFI / 方波 / EKF / 融合 / I/f / 定位)
 firmware/    固件工程集合 (PlatformIO, 每块硬件一个子工程; 移植自 core)
              ihm07m1_foc/ — IHM07M1+F302R8 有感/无感 FOC + 参数自整定
+tools/       regress.py 仿真↔实测防退化回归 (docs/05 §4)
+data/real/   真机录波 (golden set / 验证报告); 回归的真值基准
+presets/     标定后的 MotorConfig 预设 (回归 --config 用)
 docs/        文档(总览/架构/物理/控制方法/硬件)
 extensions/  自定义控制器与传感器模板
 skills/      motorsim / pio skill (供外部 agent 调用)

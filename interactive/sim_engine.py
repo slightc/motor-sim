@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from dataclasses import replace
 from motorsim_core import (
     MotorConfig, ElectricalParams, MechanicalParams, ThermalParams,
-    MotorPlant, MotorState, MotorInput, VoltageCommand, InverterLimits,
-    IdealInverter, FieldWeakeningFOC, SensorlessFOC, inv_clarke, inv_park,
+    MotorPlant, MotorState, MotorInput, VoltageCommand, InverterLimits, Measurements,
+    IdealInverter, FieldWeakeningFOC, SensorlessFOC, clarke, park, inv_clarke, inv_park,
 )
 from motorsim_sensors import SensorSuite, IdealCurrentSensor, IdealEncoder
 from motorsim_inverter import SVPWMInverter
@@ -201,10 +201,20 @@ class SimEngine:
         self.plant = MotorPlant(self.cfg, init_state=MotorState(omega_m=0.0))
         self.controller = CONTROLLERS[self.controller_name][1](self.cfg, self.lim)
         self.sensors = SensorSuite(IdealCurrentSensor(), IdealEncoder())
+        self.f_pwm = 10000.0
         if self.inverter_name == "svpwm":
-            self.inverter = SVPWMInverter(v_dc=self.v_dc, f_pwm=10000.0, dead_time=0.0)
+            self.inverter = SVPWMInverter(v_dc=self.v_dc, f_pwm=self.f_pwm, dead_time=0.0)
         else:
             self.inverter = IdealInverter()
+        # 数字控制环：以 PWM 速率运行（控制 ISR），电压指令在两次更新之间保持，
+        # 这是真实 FOC 的工作方式，也避免在每个仿真步上让 SVPWM 开关纹波进入无感观测器。
+        self.f_ctrl = self.f_pwm
+        self._ctrl_nsub = max(1, int(round((1.0 / self.f_ctrl) / self.dt)))
+        # 电流抗混叠低通：仅 SVPWM（有开关纹波）启用；理想逆变器无纹波，直通避免观测器偏置
+        self._i_fc = 1500.0 if self.inverter_name == "svpwm" else 0.0
+        self._held_cmd = VoltageCommand(0.0, 0.0, 0.0)
+        self._fi = [0.0, 0.0]   # αβ 电流低通状态
+        self._ctrl_k = 0
 
     def reset(self):
         with self.state_lock:
@@ -285,15 +295,33 @@ class SimEngine:
                 time.sleep(tick_wall)
                 continue
 
+            nsub = self._ctrl_nsub
+            Tc = 1.0 / self.f_ctrl
+            i_fc = self._i_fc
+            a_i = (self.dt / (1.0 / (2 * math.pi * i_fc) + self.dt)) if i_fc > 0 else 1.0
+            pos = sensors.position
             steps = max(1, int(round(tick_wall * speed / self.dt)))
             for _ in range(steps):
                 obs = plant.observe()
-                meas = sensors.measure(obs, self.dt)
-                if enabled:
-                    cmd = controller.compute(meas, ref, self.dt)
-                else:
-                    cmd = VoltageCommand(0.0, 0.0, 0.0)
-                minp = inverter.apply(cmd, obs, self.dt)
+                # 连续抗混叠低通后的 αβ 电流（模拟 ADC 前端；理想逆变器 a_i=1 即直通）
+                ial, ibe = clarke(obs.i_a, obs.i_b, obs.i_c)
+                self._fi[0] += a_i * (ial - self._fi[0])
+                self._fi[1] += a_i * (ibe - self._fi[1])
+                # 数字控制环：每 nsub 个仿真步（= 一个 PWM 周期）更新一次，期间保持电压
+                if self._ctrl_k % nsub == 0:
+                    if enabled:
+                        theta_e, omega_m = pos.read(obs, Tc)
+                        fial, fibe = self._fi[0], self._fi[1]
+                        ia_f, ib_f, ic_f = inv_clarke(fial, fibe)
+                        i_d, i_q = park(fial, fibe, theta_e)
+                        meas = Measurements(t=obs.t, i_a=ia_f, i_b=ib_f, i_c=ic_f,
+                                            i_d=i_d, i_q=i_q, theta_e=theta_e, omega_m=omega_m,
+                                            theta_e_true=obs.theta_e)
+                        self._held_cmd = controller.compute(meas, ref, Tc)
+                    else:
+                        self._held_cmd = VoltageCommand(0.0, 0.0, 0.0)
+                self._ctrl_k += 1
+                minp = inverter.apply(self._held_cmd, obs, self.dt)
                 minp = replace(minp, t_load=load)
                 plant.step(minp, self.dt)
                 o = plant.observe()

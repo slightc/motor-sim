@@ -1,119 +1,105 @@
 ---
 name: pio
 description: >
-  用 PlatformIO 把本仓库仿真验证过的电机控制算法落到 STM32 真实硬件
-  （X-NUCLEO-IHM07M1 + NUCLEO-F302R8）。当用户需要：编译/烧录/监视 firmware/ 下的
-  FOC 固件；新增或修改 STM32 板级支持(BSP)、外设(TIM1 PWM/ADC/编码器)、控制 ISR；
-  把 control/ 或 core 的算法移植到 MCU；调试 PlatformIO 工程(platformio.ini、HAL 配置、
-  时钟/引脚映射)；或做仿真↔固件的"同输入同输出"回归时，使用本 skill。涉及
-  platformio/pio/固件/firmware/烧录/upload/STM32/Nucleo/IHM07M1/HAL/移植 等关键词即触发。
+  用 PlatformIO 构建/烧录/调试/测试嵌入式固件（MCU 工程）。当用户需要：编译固件
+  (pio run)、烧录到开发板 (upload)、串口监视 (monitor)、片上调试 (debug)、跑单元测试
+  (pio test)、管理平台/框架/库依赖、配置 platformio.ini（board/framework/build_flags）、
+  组织固件工程结构、或把算法做成可在 PC 上回归的硬件无关模块时，使用本 skill。
+  涉及 platformio/pio/固件/firmware/烧录/upload/flash/MCU/单片机/嵌入式/STM32/ESP32/
+  Arduino/HAL 等关键词即触发。具体板子/引脚/构建环境等**项目特定信息见该固件目录下的 README**。
 ---
 
-# pio — 用 PlatformIO 把仿真算法落到 STM32 硬件
+# pio — 用 PlatformIO 构建嵌入式固件
 
-## 这是什么
+通用 PlatformIO 使用指南。**项目特定的事实**（目标板、引脚映射、接线、构建环境、
+运行模式、安全须知）**不在本 skill**，而在对应固件目录的 `README`——动手前先读它。
 
-本仓库是 PMSM 仿真框架（`core/` + `control/`）。**pio skill 负责"算法移植闭环"的硬件一侧**
-（见 `docs/05_hardware_deployment.md`）：把 `control/` 里仿真验证过的 `Controller.compute`
-逻辑，按位移植成 STM32 固件并用 PlatformIO 构建/烧录。
+## 何时用
 
-固件工程在 **`firmware/`**，目标板 **X-NUCLEO-IHM07M1 + NUCLEO-F302R8**，
-框架 **STM32Cube HAL**。算法核心 `firmware/src/foc.c` 是 `core/motorsim_core.py` 的
-逐行移植，并有 PC 端回归保证"固件 == 仿真"。
-
-## 工程结构
-
-```
-firmware/
-  platformio.ini              env=nucleo_f302r8, framework=stm32cube
-  include/
-    foc.h                     FOC + 无感观测器接口（纯算法，零硬件依赖）
-    param_id.h                参数自整定接口
-    bsp_ihm07m1.h             板级常数 + 引脚映射（换板子只改这里）
-    stm32f3xx_hal_conf.h      HAL 模块裁剪
-  src/
-    foc.c                     Clarke/Park/PI 双环/SVPWM（移植自 FieldWeakeningFOC）
-    foc_sensorless.c          反电动势观测器 + PLL + 无感 FOC（移植自 BackEMFObserver/SensorlessFOC）
-    param_id.c                参数自整定状态机（Rs/Ld/Lq，docs/05 §3.2）
-    bsp_ihm07m1.c             TIM1 PWM / ADC 注入 / 编码器 / 时钟（HAL）
-    main.c                    模式编排：PARAM_ID→SENSORLESS 默认流程；ADC 中断电流环
-    stm32f3xx_it.c            ADC 注入完成中断 → 跑一拍控制
-  test/
-    PC 原生回归（gen_golden.py / test_foc_host.c / run_host_test.sh）
-```
+- 编译 / 烧录 / 监视 / 调试 / 测试一个 PlatformIO 固件工程
+- 新增或修改外设驱动、板级支持(BSP)、中断、控制/采集逻辑
+- 配置 `platformio.ini`（环境、平台、框架、编译选项、上传/调试工具）
+- 把算法拆成硬件无关模块，在 PC 上做回归
 
 ## 常用命令
 
 ```bash
-cd firmware
-pio run                       # 编译（首次会自动拉平台/工具链/HAL）
-pio run -t upload             # 烧录到板子（ST-Link，板载）
-pio device monitor            # 串口监视（115200）
+cd <固件目录>                 # 含 platformio.ini 的目录
+pio run                       # 编译（默认环境；首次自动拉平台/工具链/框架）
+pio run -e <env>              # 指定环境编译
+pio run -t upload             # 烧录到板子
 pio run -t clean              # 清理构建产物
-pio run -v                    # 详细编译（排错时看完整命令）
-pio check                     # 静态检查
+pio run -v                    # 详细输出（排错看完整编译/链接命令）
+pio device monitor            # 串口监视（波特率见 monitor_speed）
+pio device list               # 列出已连接串口/设备
+pio debug                     # 启动片上调试（需 debug_tool）
+pio test                      # 跑单元测试（test/ 目录）
+pio test -e native            # 在 PC 本机跑测试（需 native 环境）
+pio pkg install               # 安装/同步依赖
+pio check                     # 静态分析
 ```
 
-烧录前确认板子已用 USB 接 ST-Link（NUCLEO 板载），`upload_protocol=stlink` 已配好。
+排错优先级：`pio run -v` 看真实编译命令 → 确认 `platformio.ini` 的 board/framework →
+确认 `pio device list` 能看到板子（烧录失败多是接口/权限/驱动）。
 
-## 移植映射（仿真 → 固件，见 docs/05 §2.1）
+## platformio.ini 结构
 
-| 仿真侧 | 固件侧 | 位置 |
-|--------|--------|------|
-| `Controller.compute(meas,sp,dt)` | 电流环 ISR（PWM 中点触发） | `main.c: foc_control_isr` |
-| `VoltageCommand` → SVPWM | 占空比 → TIM1 CCR | `foc.c: foc_svpwm` + `bsp_pwm_set_duty` |
-| `SensorSuite.measure` | ADC 注入 + Park | `bsp_read_phase_currents` + `foc_current_step` |
-| `InverterLimits(24,2.5)` | `BSP_V_DC/BSP_I_MAX` | `bsp_ihm07m1.h` |
-| `Encoder(2500,p=4)` | TIM2 编码器模式 | `bsp_encoder_*` |
+每个 `[env:...]` 是一个构建目标。最小骨架：
 
-PI 增益、限幅、电机参数全部取仿真默认值（`FieldWeakeningFOC`：kp_i=12, ki_i=3000,
-kp_w=0.6, ki_w=10）。改算法 = 改 `foc.c`，**改完先跑回归**。
+```ini
+[env:<env_name>]
+platform  = <platform>       ; 芯片平台，如 ststm32 / espressif32 / atmelavr
+board     = <board_id>       ; 具体板子 ID，用 `pio boards <关键词>` 查
+framework = <framework>      ; 框架，如 stm32cube / arduino / zephyr / cmsis
 
-## 无感 FOC + 自动测量参数（默认主线）
+upload_protocol = <tool>     ; 烧录接口，如 stlink / esptool / jlink
+debug_tool      = <tool>
+monitor_speed   = 115200
+
+build_flags =                ; 预处理宏 / 头文件路径 / 优化
+  -Iinclude
+  -DSOME_DEFINE=1
+  -Wall -Wextra
+
+build_src_filter = +<*> -<../test/>   ; 控制哪些源文件进固件
+```
+
+- `pio boards <keyword>` 查板子 ID；`pio platform show <platform>` 看可用框架。
+- 公共配置可放 `[env]` 或自定义段 + `extends` 复用。
+- 板子专属常量（时钟、引脚、外设地址）**不要散在各处**——集中到一个 BSP 头文件，
+  换板子只改一处（具体映射写在固件 README，不写进本 skill）。
+
+## 工程结构约定（通用）
 
 ```
-上电 → MODE_PARAM_ID 静止自测 Rs/Ld/Lq → 回填 → MODE_SENSORLESS：I/f 起转 → 反电动势观测器闭环
+<固件目录>/
+  platformio.ini
+  README              ← 项目特定: 板子/引脚/接线/构建环境/运行说明（动手前先读）
+  include/            公共头文件（接口、BSP 引脚/常量、框架配置头）
+  src/                固件源码（main + 驱动 + 业务逻辑）
+  lib/                私有库（每个子目录一个库，LDF 自动识别）
+  test/              单元/集成测试（pio test；可含 native 主机测试）
 ```
 
-- **无感观测器**（`foc_sensorless.c`，移植 `BackEMFObserver`）：`e=v−Ri−L·di/dt → 低通 → PLL`。
-  PLL 按 |e| 归一化 → **只需 R/L，不需 ψ**；中高速有效，低速失锁（低速要 HFI，未移植）。
-- **参数自整定**（`param_id.c`，docs/05 §3.2）：θ=0 下 d 轴两级 DC 注入测 `Rs=ΔV/ΔI`；
-  d/q 轴方波高频注入测电流纹波 `L=V·dt/Δi`。ψ 在旋转段 `ψ=(Vq−R·iq)/ωe` 顺带估、上报。
-- 极对数 `p` 测不出，由 `BSP_MOTOR_POLEPAIRS` 配；自整定前**务必脱开负载**。
+划分建议：**硬件相关**（寄存器/HAL/引脚/中断）与**纯算法/业务逻辑**分文件。
+后者不依赖任何硬件头，便于复用与测试（见下）。
 
-## 仿真↔固件回归（关键：保证移植不走样）
+## 关键实践：算法硬件无关 + PC 端回归
 
-`foc.c` 是纯 C、零硬件依赖，可在 PC 上编译，与仿真 `core` 逐点对齐：
+把核心算法写成**纯计算模块**（只依赖 `<math.h>`/标准库，不碰寄存器/HAL），
+就能在 PC 上原生编译、用已知输入/期望输出做回归，无需上板：
 
 ```bash
-bash firmware/test/run_host_test.sh
-# gen_golden.py 从 core 生成黄金值 → 原生编译 foc.c → 比对 Clarke/Park/SVPWM/电流环
-# 期望输出：ALL PASS —— 固件 FOC 与仿真逐点一致。
+# 直接 gcc 编译纯算法模块 + 测试 harness（不链接任何 HAL）
+cc -std=c11 -O2 -Wall -Wextra -Iinclude test/test_xxx.c src/xxx.c -lm -o /tmp/t && /tmp/t
+# 或用 PlatformIO 的 native 测试环境： pio test -e native
 ```
 
-**改 `foc.c` 后必须重跑**，红了说明移植偏离仿真。这是 docs/05「算法移植闭环」的固件侧门槛。
+好处：算法逻辑改动**先在 PC 上验证**（秒级、可断言、可对拍参考实现），
+再上板验外设时序。改算法 → 跑回归 → 再编译固件，是稳的迭代节奏。
 
-## 引脚映射（NUCLEO-F302R8 ↔ IHM07M1）
+## 本环境注意
 
-| 功能 | 引脚 | 外设 |
-|------|------|------|
-| PWM U/V/W（L6230 IN1/2/3） | PA8 / PA9 / PA10 | TIM1_CH1/2/3 (AF6) |
-| 使能 EN1/2/3 | PC10 / PC11 / PC12 | GPIO 输出 |
-| 相电流 ADC | PA0 / PC1 / PB0 | ADC1 注入组 |
-
-⚠ 数字引脚（PWM/EN）已多方确认；**模拟引脚按 ST MCSDK 标准分配填写，
-驱动电机前务必对照你板子的 UM1943 原理图 / CubeMX 工程核对**。
-
-## 上电安全顺序（docs/05 §2.3，务必遵守）
-
-1. **脱开负载/桨**，先跑**开环 I/f**（`main.c` 默认 `MODE_OPENLOOP_IF`）确认相序、极对数、转向。
-2. 限幅先行：`BSP_I_MAX` 软限流、母线限幅、堵转超时。
-3. 确认无误后再切 `MODE_SENSORED`（有感闭环），逐步加 `g_speed_ref`。
-4. 每步**录波归档**（含失败样本），用于反推 core 参数（docs/05 §3）。
-
-## 注意
-
-- F302R8：Cortex-M4F（带 FPU），固件用单精度 `float`，与仿真一致；`-ffast-math` 已开。
-- 控制律在 **ADC 注入完成中断**（PWM 中点同步采样，电流纹波最小）里跑，主循环只做慢速调度（测速/模式/安全）。
-- 电流环 ≫ 速度环（带宽分离）：电流环每 PWM 周期（20kHz），速度环每 1ms。
-- 无 HAL 环境也能验算法：`foc.c` 独立编译跑 `firmware/test/`。
+- 工具链/平台/框架由 PlatformIO 按 `platformio.ini` 自动下载并缓存（首次较慢）。
+- 烧录/监视需物理连板；纯编译与 PC 端回归无需硬件。
+- 上电驱动真实硬件前，务必读该固件 README 的接线与安全说明。

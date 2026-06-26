@@ -23,6 +23,7 @@ agent.md     agent 工作指南 (claude.md 为其软链接)
 ```bash
 cd control
 python3 01_foc_sensored.py              # 有感 FOC 基线
+python3 11_foc_svpwm_observe.py         # 有感 FOC + SVPWM 波形/电流/状态观测 -> data/sim/*.png
 python3 08_fullrange_fusion.py          # 全速域融合(HFI⊕EKF)
 python3 10_position_servo_closedloop.py # 闭环无感位置伺服 <1°
 ```

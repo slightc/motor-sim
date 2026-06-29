@@ -58,28 +58,48 @@ def default_config():
     )
 
 
-# ---------------- 开环 V/Hz 控制器（无反馈，演示启停） ----------------
-class OpenLoopVHz:
-    """开环压频比：电角度按给定速度积分，沿 q 轴施加正比于速度的电压。无位置反馈。"""
-    def __init__(self, cfg, lim):
+# ---------------- I/f 电流强制开环（无感·永不发散） ----------------
+class OpenLoopIF:
+    """I/f 电流强制开环：不估计转子位置，强制定子电流幅值 i_cmd 沿一个开环电角旋转，
+    旋转电频率 = p·给定速度（带加速度限幅以平滑启动）。转子靠同步电机原理跟随该旋转
+    磁场：只要负载 < 失步转矩，机械速度就精确等于给定，且没有任何观测器可发散——
+    这是反电动势/HFI 等位置估计法在低速/纹波下失锁时的可靠兜底（参见 control/09）。
+    代价：固定电流不随负载调节（效率低），且超过失步转矩会失步。"""
+
+    def __init__(self, cfg, lim, i_cmd=4.0, accel=150.0):
         self.p = cfg.electrical.p
         self.lim = lim
-        self.theta = 0.0
-        self.v_min = 1.0       # 启动励磁
-        self.v_per_w = 0.06    # 压频比斜率
+        self.i_cmd = i_cmd                 # 强制定子电流幅值（决定失步转矩 ≈1.5·p·ψ·i_cmd）
+        self.we_slew = self.p * accel      # 电频率最大变化率（限幅 -> 平滑拉入，避免启动失步）
+        self.th = 0.0; self.we = 0.0
+        self.iid = 0.0; self.iiq = 0.0
+        self.kp_i = 8.0; self.ki_i = 2000.0
 
     def compute(self, meas, setpoint, dt):
-        self.theta = (self.theta + self.p * setpoint * dt) % (2 * math.pi)
-        v_q = min(self.lim.v_max, self.v_min + self.v_per_w * abs(setpoint)) * (1 if setpoint >= 0 else -1)
-        va, vb, vc = inv_clarke(*inv_park(0.0, v_q, self.theta))
-        return VoltageCommand(va, vb, vc)
+        # 在开环角 self.th 下做电流环：强制 i_d=i_cmd, i_q=0
+        i_al, i_be = clarke(meas.i_a, meas.i_b, meas.i_c)
+        i_d, i_q = park(i_al, i_be, self.th)
+        e_id, e_iq = self.i_cmd - i_d, 0.0 - i_q
+        v_d = self.kp_i * e_id + self.ki_i * self.iid
+        v_q = self.kp_i * e_iq + self.ki_i * self.iiq
+        vs = math.hypot(v_d, v_q)
+        if vs > self.lim.v_max:
+            sc = self.lim.v_max / vs; v_d *= sc; v_q *= sc
+        else:
+            self.iid += e_id * dt; self.iiq += e_iq * dt
+        # 电频率向目标限幅爬升，电角积分（无位置反馈，故不会发散）
+        we_t = self.p * setpoint
+        d = max(-self.we_slew * dt, min(self.we_slew * dt, we_t - self.we))
+        self.we += d
+        self.th = (self.th + self.we * dt) % (2 * math.pi)
+        return VoltageCommand(*inv_clarke(*inv_park(v_d, v_q, self.th)))
 
 
 # 控制器注册表：name -> 工厂(cfg, lim) -> controller
 CONTROLLERS = {
-    "foc_sensored":   ("有感 FOC（弱磁）",      lambda cfg, lim: FieldWeakeningFOC(cfg, lim)),
-    "foc_sensorless": ("无感 FOC（反电动势）",  lambda cfg, lim: SensorlessFOC(cfg, lim)),
-    "openloop_vhz":   ("开环 V/Hz",             lambda cfg, lim: OpenLoopVHz(cfg, lim)),
+    "foc_sensored":   ("有感 FOC（弱磁）",         lambda cfg, lim: FieldWeakeningFOC(cfg, lim)),
+    "openloop_if":    ("无感 I/f 开环（永不发散）", lambda cfg, lim: OpenLoopIF(cfg, lim)),
+    "foc_sensorless": ("无感 FOC（反电动势）",      lambda cfg, lim: SensorlessFOC(cfg, lim)),
 }
 INVERTERS = {
     "ideal": "理想逆变器",

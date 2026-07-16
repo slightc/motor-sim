@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="720" viewBox="0 0 1040 720" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <!-- 箭头 -->
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrowLoop" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#0e9488"/>
+    </marker>
+    <marker id="arrowFeed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#9333ea"/>
+    </marker>
+    <!-- 卡片阴影 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <linearGradient id="gStep1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/><stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="gStep2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff7ed"/><stop offset="1" stop-color="#ffedd5"/>
+    </linearGradient>
+    <linearGradient id="gStep3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ecfdf5"/><stop offset="1" stop-color="#d1fae5"/>
+    </linearGradient>
+    <linearGradient id="gCfg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#faf5ff"/><stop offset="1" stop-color="#f3e8ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1040" height="720" fill="#f8fafc"/>
+
+  <!-- 标题 -->
+  <text x="520" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#0f172a">motorsim · 期望迭代流程</text>
+  <text x="520" y="82" text-anchor="middle" font-size="15" fill="#64748b">仿真探索算法 → 落到真机 → 修正 gap 并反哺仿真（闭环迭代）</text>
+
+  <!-- ===== 三个主阶段 ===== -->
+  <!-- Step 1 -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="140" width="270" height="180" rx="16" fill="url(#gStep1)" stroke="#60a5fa" stroke-width="2"/>
+  </g>
+  <circle cx="108" cy="178" r="20" fill="#2563eb"/>
+  <text x="108" y="185" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">1</text>
+  <text x="140" y="184" font-size="19" font-weight="700" fill="#1e3a8a">在仿真上跑通算法</text>
+  <line x1="92" y1="206" x2="318" y2="206" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="94" y="234" font-size="14" fill="#1e40af">· 纯软件闭环，快速试错</text>
+  <text x="94" y="260" font-size="14" fill="#1e40af">· AI 便捷探索 / 迭代算法</text>
+  <text x="94" y="286" font-size="14" fill="#1e40af">· FOC / HFI / EKF / 融合 …</text>
+  <text x="94" y="308" font-size="12.5" fill="#3b82f6" font-style="italic">control/  ·  core/</text>
+
+  <!-- Step 2 -->
+  <g filter="url(#shadow)">
+    <rect x="385" y="140" width="270" height="180" rx="16" fill="url(#gStep2)" stroke="#fb923c" stroke-width="2"/>
+  </g>
+  <circle cx="423" cy="178" r="20" fill="#ea580c"/>
+  <text x="423" y="185" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">2</text>
+  <text x="455" y="184" font-size="19" font-weight="700" fill="#9a3412">部署到真实硬件</text>
+  <line x1="407" y1="206" x2="633" y2="206" stroke="#fdba74" stroke-width="1.5"/>
+  <text x="409" y="234" font-size="14" fill="#9a3412">· 算法移植为固件工程</text>
+  <text x="409" y="260" font-size="14" fill="#9a3412">· 逐点回归：固件↔仿真</text>
+  <text x="409" y="286" font-size="14" fill="#9a3412">· 烧录真机 / 录波</text>
+  <text x="409" y="308" font-size="12.5" fill="#f97316" font-style="italic">firmware/  ·  X-NUCLEO-IHM07M1</text>
+
+  <!-- Step 3 -->
+  <g filter="url(#shadow)">
+    <rect x="700" y="140" width="270" height="180" rx="16" fill="url(#gStep3)" stroke="#34d399" stroke-width="2"/>
+  </g>
+  <circle cx="738" cy="178" r="20" fill="#059669"/>
+  <text x="738" y="185" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">3</text>
+  <text x="770" y="184" font-size="19" font-weight="700" fill="#065f46">修正 gap · 反哺仿真</text>
+  <line x1="722" y1="206" x2="948" y2="206" stroke="#6ee7b7" stroke-width="1.5"/>
+  <text x="724" y="234" font-size="14" fill="#065f46">· 对齐实测与仿真差异</text>
+  <text x="724" y="260" font-size="14" fill="#065f46">· 补物理保真度回 core</text>
+  <text x="724" y="286" font-size="14" fill="#065f46">· 防退化回归门槛</text>
+  <text x="724" y="308" font-size="12.5" fill="#10b981" font-style="italic">tools/regress.py  ·  data/real/</text>
+
+  <!-- 阶段箭头 1->2, 2->3 -->
+  <line x1="340" y1="230" x2="383" y2="230" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="655" y1="230" x2="698" y2="230" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- 闭环回环箭头 3 -> 1 -->
+  <path d="M 835 320 C 835 400, 205 400, 205 322" fill="none" stroke="#0e9488" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrowLoop)"/>
+  <rect x="438" y="368" width="164" height="30" rx="15" fill="#ccfbf1" stroke="#0e9488" stroke-width="1.5"/>
+  <text x="520" y="388" text-anchor="middle" font-size="14" font-weight="600" fill="#0f766e">仿真越用越强 · 循环迭代</text>
+
+  <!-- ===== 关键实现：统一配置 ===== -->
+  <g filter="url(#shadow)">
+    <rect x="150" y="470" width="740" height="180" rx="18" fill="url(#gCfg)" stroke="#a855f7" stroke-width="2"/>
+  </g>
+  <rect x="150" y="470" width="740" height="46" rx="18" fill="#a855f7"/>
+  <rect x="150" y="496" width="740" height="20" fill="#a855f7"/>
+  <text x="520" y="500" text-anchor="middle" font-size="18" font-weight="700" fill="#fff">关键实现 · 一套仿真/真机通用的配置</text>
+
+  <!-- 中央配置块 -->
+  <rect x="430" y="540" width="180" height="88" rx="12" fill="#fff" stroke="#9333ea" stroke-width="2"/>
+  <text x="520" y="570" text-anchor="middle" font-size="15" font-weight="700" fill="#6b21a8">MotorConfig</text>
+  <text x="520" y="592" text-anchor="middle" font-size="15" font-weight="700" fill="#6b21a8">InverterConfig</text>
+  <text x="520" y="614" text-anchor="middle" font-size="12" fill="#a855f7">电机 · 逆变器 参数</text>
+
+  <!-- 左：仿真消费 -->
+  <rect x="185" y="548" width="180" height="72" rx="12" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.8"/>
+  <text x="275" y="578" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">仿真 core</text>
+  <text x="275" y="600" text-anchor="middle" font-size="12.5" fill="#2563eb">装配物理 / 逆变器模型</text>
+
+  <!-- 右：真机消费 -->
+  <rect x="675" y="548" width="180" height="72" rx="12" fill="#fff7ed" stroke="#fb923c" stroke-width="1.8"/>
+  <text x="765" y="578" text-anchor="middle" font-size="15" font-weight="700" fill="#9a3412">真机固件</text>
+  <text x="765" y="600" text-anchor="middle" font-size="12.5" fill="#ea580c">同一参数上板运行</text>
+
+  <!-- 配置 -> 两侧 箭头 -->
+  <line x1="430" y1="584" x2="367" y2="584" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrowFeed)"/>
+  <line x1="610" y1="584" x2="673" y2="584" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrowFeed)"/>
+
+  <text x="520" y="682" text-anchor="middle" font-size="13.5" fill="#7e22ce">同一份配置驱动仿真与真机 → 消除“对不上”的根源，标定结果可预设复用（presets/）</text>
+</svg>

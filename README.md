@@ -4,6 +4,18 @@
 
 **核心信条：物理归 core，算法归 controller。**
 
+## 期望迭代流程
+
+<p align="center">
+  <img src="docs/iteration_flow.svg" alt="motorsim 期望迭代流程" width="820">
+</p>
+
+1. **在仿真上跑通算法** —— 纯软件闭环，快速试错，AI 便捷探索/迭代算法（`control/`、`core/`）。
+2. **部署到真实硬件** —— 算法移植为固件工程，固件↔仿真逐点回归后烧录真机（`firmware/`）。
+3. **修正真机 gap 并反哺仿真** —— 对齐实测差异、补物理保真度回 `core`、加防退化回归门槛（`tools/regress.py`、`data/real/`），让仿真越用越强，闭环迭代。
+
+**关键实现**：将电机与逆变器抽象为一套 **仿真/真机通用的配置**（`MotorConfig` / `InverterConfig`）——同一份参数既装配仿真物理模型、也上板驱动真机固件，从根源消除“仿真对不上硬件”，标定结果还可沉淀为预设复用（`presets/`）。
+
 ```
 core/        仿真核心 + 官方扩展(逆变器/传感器)
 control/     11 个控制算法 demo (FOC / 反电动势 / HFI / 方波 / EKF / 融合 / I/f / 定位)
